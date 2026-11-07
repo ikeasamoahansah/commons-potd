@@ -28,6 +28,12 @@ def _copy_into_backgrounds(path: Path) -> Path:
     backgrounds = Path.home() / ".local" / "share" / "backgrounds"
     backgrounds.mkdir(parents=True, exist_ok=True)
     destination = backgrounds / path.name
+    if destination.exists() and destination.stem == path.stem:
+        try:
+            if destination.samefile(path):
+                return destination
+        except OSError:
+            pass
     shutil.copyfile(path, destination)
     return destination
 
