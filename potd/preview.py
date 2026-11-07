@@ -152,5 +152,9 @@ def show_chooser(items: list[PreviewItem], date_text: str) -> int | None:
     root.update_idletasks()
     root.geometry(f"+{(root.winfo_screenwidth() - root.winfo_reqwidth()) // 2}"
                   f"+{(root.winfo_screenheight() - root.winfo_reqheight()) // 2}")
+    root.lift()
+    root.attributes("-topmost", True)
+    root.after(200, lambda: root.attributes("-topmost", False))
+    root.focus_force()
     root.mainloop()
     return chosen[0]

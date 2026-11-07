@@ -39,8 +39,8 @@ with Python (on Ubuntu: `sudo apt install python3-tk python3-pil`).
 ## Usage
 
 ```bash
-potd                          # fetch today's picture(s), preview, choose
-potd --auto                   # take the first image, no preview
+potd                          # preview today's picture, confirm, apply
+potd --auto                   # no preview; take the first image right away
 potd --index 2                # take the second image, no preview
 potd --date 2026-11-07        # a specific day
 potd --width 3840             # force 4K downloads (for fractional scaling)

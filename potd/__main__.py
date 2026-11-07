@@ -130,11 +130,13 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
             return 1
         chosen = args.index - 1
-    elif args.auto or len(images) == 1:
-        # Nothing to pick between (or the user opted out of the preview).
+    elif args.auto:
         chosen = 0
     else:
+        # Always show the preview — even for a single daily image — so you
+        # can confirm (or cancel) before the wallpaper changes.
         try:
+            print("Opening the preview window — confirm the picture there.")
             items = [_build_preview_item(image, i, len(images), date)
                      for i, image in enumerate(images)]
             chosen = show_chooser(items, f"{date:%Y-%m-%d}")
