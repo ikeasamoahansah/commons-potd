@@ -51,22 +51,65 @@ Click behaviour in the preview: **click** to select, **double-click** or
 **Return** to set as wallpaper, **right-click** to open the Commons page,
 **Esc** to cancel without changing anything.
 
-## Run it daily
+## Run it every day at 00:00
 
-GNOME: open *Applications → Tweaks*, or add a systemd user timer:
+The clean way on modern Linux desktops is a **systemd user timer** (no root
+needed; `--auto` means no window is opened).
 
-```bash
-systemd-run --user --on-calendar=*-*-* 09:30:00 potd --auto
-```
-
-or spawn it at login in `~/.config/autostart/potd.desktop`:
+Create `~/.config/systemd/user/potd.service`:
 
 ```ini
-[Desktop Entry]
-Type=Application
-Name=Commons Picture of the Day
-Exec=potd --auto
+[Unit]
+Description=Set wallpaper to the Wikimedia Commons Picture of the Day
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/programming/commons-potd
+ExecStart=/usr/bin/python3 -m potd --auto
 ```
+
+> If you installed with `pip install .`, you can drop the WorkingDirectory
+> line and use `ExecStart=/usr/bin/potd --auto` instead.
+
+Create `~/.config/systemd/user/potd.timer`:
+
+```ini
+[Unit]
+Description=Daily Commons POTD wallpaper update at 00:00
+
+[Timer]
+OnCalendar=*-*-* 00:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Enable it:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now potd.timer     # starts now, fires at 00:00 daily
+systemctl --user list-timers potd.timer      # confirm the next run
+```
+
+Notes:
+
+- `Persistent=true` means a missed midnight (PC off or asleep) is caught up
+  on the next time your session runs.
+- User timers live inside your desktop session — they run while you are
+  logged in (the normal case for a desktop). To have it fire right after
+  login on days you were off at midnight, keep `Persistent=true`.
+- Setting the wallpaper needs your graphical session's D-Bus, which exists;
+  no X/Wayland access is required because `--auto` never opens windows.
+
+Alternative, classic **cron** (fires at 00:00 too; `crontab -e`):
+
+```cron
+0 0 * * * cd ~/programming/commons-potd && /usr/bin/python3 -m potd --auto >/dev/null 2>&1
+```
+
+with the usual cron caveat: there is no catch-up if the machine was off.
 
 ## How it works
 
