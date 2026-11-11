@@ -9,16 +9,21 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import sys
+import time
 from pathlib import Path, PurePosixPath
 
 from . import __version__
-from .api import PotdImage, PotdError, download, fetch_potd_images
+from .api import (NetworkError, PotdImage, PotdError, download,
+                  fetch_potd_images)
 from .preview import PreviewItem, show_chooser
 from .wallpaper import WallpaperError, set_wallpaper
 
 _CACHE_DIR = Path.home() / ".cache" / "commons-potd"
 _BACKGROUNDS_DIR = Path.home() / ".local" / "share" / "backgrounds"
 _PREVIEW_PADDING = 96
+_RETRY_INTERVAL = 60 * 60  # seconds between offline retries
+_OFFLINE_MESSAGE = "Wallpaper could not be loaded due to internet connectivity."
+_RETRY_MESSAGE = "Retrying in an hour — press Ctrl-C to stop waiting."
 
 
 def _screen_size(default: tuple[int, int] = (1920, 1080)) -> tuple[int, int]:
@@ -39,6 +44,22 @@ def _preview_size(n: int, screen_w: int, screen_h: int) -> tuple[int, int]:
     box_w = max(280, min(640, (screen_w - _PREVIEW_PADDING) // max(n, 1)))
     box_h = max(220, min(720, screen_h - 320))
     return box_w, box_h
+
+
+def _fetch_images(date: dt.date, screen_width: int) -> list[PotdImage]:
+    """Fetch the day's images, retrying hourly while offline.
+
+    Connectivity failures print a message and wait one hour between
+    attempts, forever (Ctrl-C cancels). Any other :class:`PotdError` —
+    e.g. a day with no picture — propagates immediately.
+    """
+    while True:
+        try:
+            return fetch_potd_images(date, screen_width=screen_width)
+        except NetworkError:
+            print(_OFFLINE_MESSAGE, file=sys.stderr)
+            print(_RETRY_MESSAGE, file=sys.stderr)
+            time.sleep(_RETRY_INTERVAL)
 
 
 def _build_preview_item(image: PotdImage, index: int, n: int,
@@ -111,7 +132,11 @@ def main(argv: list[str] | None = None) -> int:
     screen_width = args.width or _screen_size()[0]
 
     try:
-        images = fetch_potd_images(date, screen_width=screen_width)
+        if args.list:
+            # A listing shouldn't sit around waiting for the network.
+            images = fetch_potd_images(date, screen_width=screen_width)
+        else:
+            images = _fetch_images(date, screen_width)
     except PotdError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

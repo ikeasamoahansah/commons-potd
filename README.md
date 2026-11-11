@@ -22,6 +22,9 @@ between them).
   XFCE, and `feh`/`swaybg` window managers.
 - Wallpaper-size download (matched to your monitor; up to 4096 px), cached in
   `~/.local/share/backgrounds/` so the file survives cache clears.
+- If there is no internet connection at launch, it prints
+  *"Wallpaper could not be loaded due to internet connectivity."* and retries
+  once an hour until the connection returns (Ctrl-C stops waiting).
 - Optionally run unattended (`--auto`) via systemd timers or autostart.
 
 ## Installation

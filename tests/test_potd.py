@@ -1,12 +1,16 @@
 """Offline unit tests — no network required."""
 
 import unittest
+import unittest.mock
 from pathlib import PurePosixPath
 
+from potd import __main__ as cli
 from potd.api import (
     IMAGE_EXTENSIONS,
     THUMBNAIL_STEPS,
     _SKIP_RE,
+    NetworkError,
+    PotdError,
     PotdImage,
     potd_templates,
     snap_width,
@@ -140,6 +144,45 @@ class SkipFilterTests(unittest.TestCase):
         self.assertIn(".svg", IMAGE_EXTENSIONS)
         self.assertNotIn(".ogg", IMAGE_EXTENSIONS)
         self.assertNotIn(".pdf", IMAGE_EXTENSIONS)
+
+
+class RetryTests(unittest.TestCase):
+    """Offline behaviour when the machine has no internet connection."""
+
+    def _run(self, fake_fetch):
+        """Call ``cli._fetch_images`` with ``fake_fetch`` and a stubbed sleep."""
+        sleeps = []
+        with unittest.mock.patch.object(cli, "fetch_potd_images", fake_fetch), \
+                unittest.mock.patch.object(cli.time, "sleep", sleeps.append):
+            result = cli._fetch_images("someday", 1920)
+        return result, sleeps
+
+    def test_retries_hourly_until_success(self):
+        calls = []
+
+        def fake_fetch(date, *, screen_width):
+            calls.append(screen_width)
+            if len(calls) < 3:
+                raise NetworkError("Could not reach Wikimedia Commons: down")
+            return ["image"]
+
+        result, sleeps = self._run(fake_fetch)
+        self.assertEqual(result, ["image"])
+        self.assertEqual(calls, [1920, 1920, 1920])
+        # One sleep between each pair of attempts, exactly an hour apart.
+        self.assertEqual(sleeps, [cli._RETRY_INTERVAL, cli._RETRY_INTERVAL])
+        self.assertEqual(cli._RETRY_INTERVAL, 60 * 60)
+
+    def test_other_potd_errors_do_not_wait(self):
+        def fake_fetch(date, *, screen_width):
+            raise PotdError("No Picture of the Day found for someday.")
+
+        with self.assertRaises(PotdError):
+            self._run(fake_fetch)
+
+    def test_network_error_is_a_potd_error(self):
+        # Callers that catch PotdError keep working unchanged.
+        self.assertTrue(issubclass(NetworkError, PotdError))
 
 
 class PreviewSizeTests(unittest.TestCase):

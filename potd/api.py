@@ -50,6 +50,15 @@ class PotdError(Exception):
     """Raised when the Picture of the Day cannot be fetched."""
 
 
+class NetworkError(PotdError):
+    """A :class:`PotdError` caused by a connectivity failure.
+
+    Raised on timeout / connection / HTTP-transport problems so callers
+    can wait for the network instead of giving up. It is a *subclass* of
+    ``PotdError``, so code that only catches ``PotdError`` keeps working.
+    """
+
+
 @dataclass(frozen=True)
 class PotdImage:
     """One candidate image for the day."""
@@ -125,7 +134,7 @@ def _get(params: dict, session: Optional[requests.Session] = None) -> dict:
         response.raise_for_status()
         return response.json()
     except requests.RequestException as exc:
-        raise PotdError(f"Could not reach Wikimedia Commons: {exc}") from exc
+        raise NetworkError(f"Could not reach Wikimedia Commons: {exc}") from exc
 
 
 def potd_templates(date: dt.date) -> tuple[str, ...]:
@@ -232,7 +241,7 @@ def fetch_potd_from_feed(
         response.raise_for_status()
         image = response.json().get("image") or {}
     except requests.RequestException as exc:
-        raise PotdError(f"Could not reach the Wikimedia feed: {exc}") from exc
+        raise NetworkError(f"Could not reach the Wikimedia feed: {exc}") from exc
     title = image.get("title", "")
     if not title:
         return []
@@ -265,5 +274,7 @@ def download(url: str, path, session: Optional[requests.Session] = None) -> None
             with open(path, "wb") as fh:
                 for chunk in response.iter_content(chunk_size=1 << 16):
                     fh.write(chunk)
-    except (requests.RequestException, OSError) as exc:
+    except requests.RequestException as exc:
+        raise NetworkError(f"Could not download {url}: {exc}") from exc
+    except OSError as exc:  # e.g. disk full / permission denied, not network
         raise PotdError(f"Could not download {url}: {exc}") from exc
